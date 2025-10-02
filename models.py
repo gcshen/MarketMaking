@@ -16,8 +16,11 @@ class RoundReport:
     mid: float
     width: float
     width_pct_of_bid: float
-    hint_or_reveal: str
-    coaching_or_teaching: str
+    # Rounds 1–3 use these:
+    hint_or_reveal: Optional[str] = None
+    coaching_or_teaching: Optional[str] = None
+    # Round 4 uses this:
+    final_report: Optional[str] = None
 
 @dataclass
 class SessionState:

@@ -1,8 +1,8 @@
 from __future__ import annotations
 import os, requests
 from typing import List, Optional, Dict, Any
-
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+from dotenv import load_dotenv
+load_dotenv()
 
 class OpenRouterClient:
     """
@@ -13,6 +13,7 @@ class OpenRouterClient:
         self,
         api_key: Optional[str] = None,
         model: Optional[str] = None,
+        api_url: Optional[str] = None,
         referer: Optional[str] = None,
         title: Optional[str] = None,
         timeout: float = 60.0,
@@ -20,17 +21,34 @@ class OpenRouterClient:
         self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         if not self.api_key:
             raise RuntimeError("Missing OPENROUTER_API_KEY")
+
+        # define API URL here 
+        self.api_url = api_url or os.getenv("OPENROUTER_URL")
+
+        # If you're unsure about model access, you can use "openrouter/auto"
         self.model = model or os.getenv("OPENROUTER_MODEL", "openai/gpt-5-chat:online")
+
+        # Optional attribution headers recommended by OpenRouter
         self.referer = referer or os.getenv("APP_REFERER")
         self.title = title or os.getenv("APP_TITLE")
         self.timeout = timeout
+        
+         # DEBUG LOG (safe): prints once at startup
+        masked = (self.api_key[:6] + "..." + self.api_key[-4:]) if self.api_key and len(self.api_key) > 10 else str(bool(self.api_key))
+        print(
+            "[OpenRouterClient] ENV OK:\n"
+            f"  API_KEY : {masked}\n"
+            f"  MODEL   : {self.model}\n"
+            f"  URL     : {self.api_url}\n"
+            f"  REFERER : {self.referer}\n"
+            f"  TITLE   : {self.title}"
+        )
 
     def _headers(self) -> Dict[str, str]:
         h = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        # Optional attribution headers:
         if self.referer:
             h["HTTP-Referer"] = self.referer
         if self.title:
@@ -44,9 +62,6 @@ class OpenRouterClient:
         stream: bool = False,
         extra: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """
-        Sends a chat completion request and returns the assistant content.
-        """
         payload: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
@@ -57,10 +72,12 @@ class OpenRouterClient:
         if extra:
             payload.update(extra)
 
-        resp = requests.post(
-            OPENROUTER_URL, json=payload, headers=self._headers(), timeout=self.timeout
-        )
-        resp.raise_for_status()
+        # use self.api_url instead of undefined OPENROUTER_URL
+        resp = requests.post(self.api_url, json=payload, headers=self._headers(), timeout=self.timeout)
+
+        # Optional but helpful: show upstream errors clearly
+        if resp.status_code != 200:
+            raise RuntimeError(f"OpenRouter error {resp.status_code}: {resp.text}")
+
         data = resp.json()
-        # Non-streaming path: return first choice content
         return data["choices"][0]["message"]["content"]
